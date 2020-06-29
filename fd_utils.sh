@@ -9,7 +9,7 @@ function echo_error() {
 }
 
 function echo_warn() {
-    echo -e "\033[33m[WARNING]\033[0m $1"
+    echo -e "\033[33m[WARN ]\033[0m $1"
 }
 
 function echo_info() {
@@ -18,9 +18,9 @@ function echo_info() {
 
 function echo_tips() {
     if [ "$2" == "all" ]; then
-        echo -e "\e[35m[TIPS ] $1\e[0m"
+        echo -e "\e[33m[TIPS ] $1\e[0m"
     else
-        echo -e "\e[35m[TIPS ]\e[0m $1"
+        echo -e "\e[33m[TIPS ]\e[0m $1"
     fi
 }
 
@@ -41,21 +41,40 @@ function echo_done() {
 function die(){
     local msg="$1"
     if [ "Null$msg" == "Null" ]; then echo_error "Abort !"; exit 1; fi
-    echo_error "$msg"
+    if [ "$2" == "WARN" ]; then
+        echo_warn "$msg"
+    elif [ "$2" == "INFO" ]; then
+        echo_info "$msg"
+    elif [ "$2" == "TIPS" ]; then
+        echo_tips "$msg"
+    else
+        echo_error "$msg"
+    fi
     exit 9
 }
 
 function confirm_op() {
     local msg="$1"
-    if [ "Null$msg" == "Null" ]; then
-        msg="Is everything OK ?"
-    else
-        msg="$msg  Is everything OK ?"
-    fi
     echo
-    echo_warn "$msg"
-    read -p "[y/n] " inputKey
+    if [ "Null$msg" == "Null" ]; then
+        echo_warn "Is everything OK ? [y/n] "
+    else
+        echo_warn "$msg"
+        echo_warn "Is everything OK ? [y/n] "
+    fi
+    read inputKey
     if [ "$inputKey" != "y" ]; then echo ""; exit 1; fi
+}
+
+# $1: source string.   eg. "a b c" Or dict keys/values: "${!ArgDict[*]}"/"${ArgDict[*]}"
+# $2: checked string.  eg. "a"
+# Usage:
+#       contains_val "${!ArgDict[*]}" "a" && echo "a has" || echo "a no"
+#       contains_val "amd64, arm32v5, arm32v6, arm32v7, arm64v8, i386" "am"
+function contains_val() {
+    # if [[ "$1" =~ "$2" ]]; then return 0; else return 1; fi
+    [ "Null$2" == "Null" ] && die "Missing arg 2 in contains_val() !"
+    echo "$1" | grep -w "$2" > /dev/null && return 0 || return 1
 }
 
 # 1: message for showing
@@ -229,6 +248,24 @@ function get_files() {
 }
 
 # ====================== below functions for docker ======================
+# amd64, arm32v5, arm32v6, arm32v7, arm64v8, i386, mips64le, ppc64le, s390x
+function get_DockerArchName() {
+    local userInputValue="$1"
+    if [ "Null$userInputValue" != "Null" ]; then
+        if contains_val "amd64, arm32v5, arm32v6, arm32v7, arm64v8, i386" "$userInputValue"; then
+            [ "$userInputValue" == "amd64" ] && echo "" || echo "$userInputValue"
+        else
+            echo "ERRORARCHTYPE"
+        fi
+    else
+        local ARCH=$(uname -m)
+        case $ARCH in
+            x86_64) echo "" ;;
+            aarch64) echo "arm64v8" ;;
+            *) die "Unsupport host architecture : $ARCH"
+        esac
+    fi
+}
 
 # $1 : ls OR ls -a
 # $2 : container name

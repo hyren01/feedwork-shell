@@ -4,13 +4,25 @@
 # ============================================================
 set -e
 BINDIR=$(cd `dirname $0`; pwd)
-[ -f /usr/local/bin/fd_utils.sh ] || exit 99
-. /usr/local/bin/fd_utils.sh
 . $BINDIR/env-for-basic-img.sh
 
-# 如果要构建的OS基础镜像是为了开发使用，那么命令行传入 '-dev'。这种镜像会有ssh, vim等软件
-IMGTAG_DEV="$1"
-[ "$IMGTAG_DEV" != "-dev" ] && IMGTAG_DEV=""
+declare -A ArgDict
+while getopts ":v:a:t:" arg_opt; do
+    [ "$arg_opt" == "?" ] && die "Usage:  `basename $0` [-t ubuntu-18.04 -v 3.6/3.7/2 -a arm64v8]" "WARN"
+    ArgDict["$arg_opt"]="$OPTARG"
+    # echo "current arg : $arg_opt=$OPTARG"
+done
+# all cmd args
+# echo "ArgDict=${!ArgDict[*]}"
+ArchType="${ArgDict["a"]}"; ArchType=$(get_DockerArchName "${ArchType}"); ArchType_Prefix=${ArchType:+"${ArchType}/"}
+Version="${ArgDict["v"]:="3.6"}"
+Arg_Tag="${ArgDict["t"]:="ubuntu-18.04"}"
+echo ; echo_info "Cmd args : ArchType=${ArchType}, Version=${Version}, Tag=${Arg_Tag}"
+
+# FROM base image
+FROM_IMAGE_NAME="${IMAGE_HEAD}${ArchType_Prefix}os-basic"
+FROM_IMAGE_TAG="${Arg_Tag}"
+confirm_op "FROM base image => \033[33m${FROM_IMAGE_NAME}:${FROM_IMAGE_TAG}\033[0m"
 
 DOCKER_WORKDIR="."
 # 【设置 .dockerignore】
@@ -19,13 +31,10 @@ cat > $DOCKER_WORKDIR/.dockerignore << EOF
 EOF
 
 # 【构建镜像】
-FROM_IMAGE_NAME="os-basic"
-FROM_IMAGE_TAG="ubuntu-18.04$IMGTAG_DEV"
+IMAGE_NAME="${IMAGE_HEAD}python-basic"
+IMAGE_TAG="${Version}-${FROM_IMAGE_TAG}"
 
-IMAGE_NAME="python-basic"
-IMAGE_TAG="3.6$IMGTAG_DEV"
-
-DFILE_NAME=/tmp/DF-$IMAGE_NAME-$IMAGE_TAG.df
+DFILE_NAME=/tmp/DF-$IMAGE_TAG.df
 # ----------------- Dockerfile Start -----------------
 cat >$DFILE_NAME <<EOF
 FROM $FROM_IMAGE_NAME:$FROM_IMAGE_TAG
@@ -34,40 +43,25 @@ ENV  HR_OSLABEL=$IMAGE_NAME:$IMAGE_TAG HRS_BUILD_TIME=$BUILD_TIME
 
 RUN  set -ex && \\
      mkdir ~/.pip/ && \\
-EOF
-
-# 生产镜像会清理apt库，所以要加进来
-if [ "$IMGTAG_DEV" != "-dev" ]; then
-cat >>$DFILE_NAME <<EOF
      apt-get update && \\
-EOF
-fi
-
-cat >>$DFILE_NAME <<EOF
-     apt-get install -y --no-install-recommends python3.6 python3-dev python3-pip python3-setuptools && \\
+# python
+     apt-get install -y --no-install-recommends python${Version} python3-dev python3-pip python3-setuptools && \\
      echo "[global]" > ~/.pip/pip.conf && \\
      echo "index-url = https://mirrors.aliyun.com/pypi/simple/" >> ~/.pip/pip.conf && \\
-     pip3 install --upgrade setuptools pip && \\
-     pip3 install --no-cache-dir numpy scipy pandas scikit-learn python-dateutil h5py pyyaml \\
-EOF
-
-# 生产镜像需要清理apt库
-if [ "$IMGTAG_DEV" != "-dev" ]; then
-cat >>$DFILE_NAME <<EOF
-     && apt-get clean \\
-     && rm -rf /var/lib/apt/lists/* \\
-EOF
-fi
-
-cat >>$DFILE_NAME <<EOF
+     python3 -m pip install --no-cache-dir -U setuptools pip && \\
+     python3 -m pip install --no-cache-dir numpy==1.18.5 scipy pandas scikit-learn python-dateutil pyyaml && \\
+     apt-get clean && \\
+     rm -rf /var/lib/apt/lists/* && \\
 # over
-     && echo "Done!"
+     echo "Done!"
 EOF
 
 # ----------------- Dockerfile End  -----------------
 
 docker build -f $DFILE_NAME -t $IMAGE_NAME:$IMAGE_TAG $DOCKER_WORKDIR
-echo "" > $DOCKER_WORKDIR/.dockerignore;
+[ -f "$DOCKER_WORKDIR/.dockerignore" ] && rm -f $DOCKER_WORKDIR/.dockerignore || echo "file : $DOCKER_WORKDIR/.dockerignore not exist!"
 assert_mkimg $IMAGE_NAME $IMAGE_TAG "ShowTips"
 
+echo_done
+echo
 exit 0

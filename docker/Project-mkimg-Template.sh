@@ -113,7 +113,7 @@ EOF
 sleep 1
 
 # ========== 构建镜像 ==========
-docker build -f $DFILE_NAME -t ${IMAGE_NAME}:${IMAGE_TAG} $IMAGE_RESDIR
+docker build --no-cache -f $DFILE_NAME -t ${IMAGE_NAME}:${IMAGE_TAG} $IMAGE_RESDIR
 assert_mkimg "${IMAGE_NAME}" "${IMAGE_TAG}" "ShowTips"
 
 # ========== 构建镜像完成，正常退出 ==========

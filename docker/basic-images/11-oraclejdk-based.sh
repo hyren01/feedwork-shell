@@ -1,9 +1,6 @@
 #!/bin/bash
 
-set -e
 BINDIR=$(cd `dirname $0`; pwd)
-[ -f /usr/local/bin/fd_utils.sh ] || exit 99
-. /usr/local/bin/fd_utils.sh
 . $BINDIR/env-for-basic-img.sh
 
 #JDK_OR_JRE="$1"
