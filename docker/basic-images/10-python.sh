@@ -47,6 +47,7 @@ RUN  set -ex && \\
 # python
      apt-get install -y --no-install-recommends python${Version} python3-dev python3-pip python3-setuptools && \\
      echo "[global]" > ~/.pip/pip.conf && \\
+     echo "trusted-host = pypi.tuna.tsinghua.edu.cn" >> ~/.pip/pip.conf && \\
      echo "index-url = https://mirrors.aliyun.com/pypi/simple/" >> ~/.pip/pip.conf && \\
      python3 -m pip install --no-cache-dir -U setuptools pip && \\
      python3 -m pip install --no-cache-dir numpy==1.18.5 scipy pandas scikit-learn python-dateutil pyyaml && \\

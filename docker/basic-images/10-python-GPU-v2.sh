@@ -8,7 +8,7 @@ BINDIR=$(cd `dirname $0`; pwd)
 
 declare -A ArgDict
 while getopts ":v:" arg_opt; do
-    [ "$arg_opt" == "?" ] && die "Usage:  `basename $0` [-v 3.6/3.7/3.8]" "WARN"
+    [ "$arg_opt" == "?" ] && die "Usage:  `basename $0` [-v 3.6.9/3.7.8/3.8.4]" "WARN"
     ArgDict["$arg_opt"]="$OPTARG"
     # echo "current arg : $arg_opt=$OPTARG"
 done
@@ -35,6 +35,7 @@ IMAGE_TAG="${Version}-GPU-cuda10.0"
 
 DFILE_NAME=/tmp/DF-$IMAGE_TAG.df
 # ----------------- Dockerfile Start -----------------
+PYTHON_VERSION=${Version}
 cat >$DFILE_NAME <<EOF
 FROM $FROM_IMAGE_NAME:$FROM_IMAGE_TAG
 
@@ -64,16 +65,50 @@ RUN  set -ex && \\
      mkdir /run/sshd && \\
      echo "root:hrs@6688" | chpasswd && \\
      echo "PermitRootLogin yes" >> /etc/ssh/sshd_config && \\
+     echo "System soft Done!"
+
 # python TODO: 这种方式安装3.7后，再安装pip时，因为缺少distutils.util而需要装python3-distutils，但这会导致系统被装成了3.6.9
-     apt-get install -y --no-install-recommends python${Version} python${Version}-dev && \\
+ENV PATH /usr/local/bin:$PATH
+RUN  set -ex && \\
+     wget -O python.tar.xz "https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz" && \\
+     apt install -y --no-install-recommends \\
+        autoconf automake bzip2 dpkg-dev file g++ gcc imagemagick libbz2-dev libc6-dev \\
+        libcurl4-openssl-dev libdb-dev libevent-dev libffi-dev libgdbm-dev libglib2.0-dev libgmp-dev \\
+        libjpeg-dev libkrb5-dev liblzma-dev libmagickcore-dev libmagickwand-dev libmaxminddb-dev \\
+        libncurses5-dev libncursesw5-dev libpng-dev libpq-dev libreadline-dev libsqlite3-dev \\
+        libssl-dev libtool libwebp-dev libxml2-dev libxslt-dev libyaml-dev \\
+        make patch unzip xz-utils zlib1g-dev tk-dev uuid-dev && \\
+     mkdir -p /usr/src/python && \\
+     tar -xJC /usr/src/python --strip-components=1 -f python.tar.xz && \\
+     rm python.tar.xz && cd /usr/src/python && \\
+     ./configure --enable-loadable-sqlite-extensions --enable-optimizations --enable-option-checking=fatal \\
+        --enable-shared --with-system-expat --with-system-ffi && \\
+     make -j "$(nproc)" PROFILE_TASK='-m test.regrtest --pgo \\
+        test_array test_base64 test_binascii test_binhex test_binop test_bytes test_class \\
+        test_c_locale_coercion test_cmath test_codecs test_compile test_complex test_csv \\
+        test_decimal test_dict test_float test_fstring test_hashlib test_io test_iter \\
+        test_json test_long test_math test_memoryview test_pickle test_re test_set test_slice \\
+        test_struct test_threading test_time test_traceback test_unicode' && \\
+     make install && \\
+     ldconfig && \\
+     find /usr/local -depth \\
+        \\( \\
+            \\( -type d -a \\( -name test -o -name tests -o -name idle_test \\) \\) \\
+            -o \\
+            \\( -type f -a \\( -name '*.pyc' -o -name '*.pyo' \\) \\) \\
+        \\) -exec rm -rf '{}' + && \\
+     rm -rf /usr/src/python && \\
+     python3 --version && \\
+     cd /usr/local/bin && \\
+     ln -s idle3 idle && \\
+     ln -s pydoc3 pydoc && \\
+     ln -s python3 python && \\
+     ln -s python3-config python-config && \\
+
      mkdir ~/.pip/ && \\
-     if [ ! -f /usr/bin/python3 ]; then ln -s /usr/bin/python${Version} /usr/bin/python3; fi; [ -f /usr/bin/python3 ] && \\
      echo "[global]" > ~/.pip/pip.conf && \\
      echo "trusted-host = pypi.tuna.tsinghua.edu.cn" >> ~/.pip/pip.conf && \\
      echo "index-url = https://pypi.tuna.tsinghua.edu.cn/simple/" >> ~/.pip/pip.conf && \\
-     python3 -m pip install --no-cache-dir -U pip==20.0.2 && \\
-     python3 -m pip install --no-cache-dir -U setuptools && \\
-     python3 -m pip install --no-cache-dir numpy==1.18.5 scipy pandas scikit-learn python-dateutil h5py pyyaml && \\
 # clean
      apt-get clean && \\
      rm -rf /var/lib/apt/lists/* && \\

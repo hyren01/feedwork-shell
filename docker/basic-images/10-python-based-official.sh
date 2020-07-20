@@ -52,6 +52,7 @@ RUN  set -ex && \\
 RUN  set -ex && \\
 # setup python soft
      mkdir ~/.pip/ && echo "[global]" > ~/.pip/pip.conf && \\
+     echo "trusted-host = pypi.tuna.tsinghua.edu.cn" >> ~/.pip/pip.conf && \\
      echo "index-url = https://pypi.tuna.tsinghua.edu.cn/simple/" >> ~/.pip/pip.conf && \\
      python3 -m pip install --no-cache-dir -U setuptools pip && \\
      python3 -m pip install --no-cache-dir numpy==1.18.5 && \\
